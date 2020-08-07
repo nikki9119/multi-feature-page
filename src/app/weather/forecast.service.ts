@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { map, switchMap, pluck, mergeMap, filter, toArray, share } from 'rxjs/operators';
+import { Observable, of, throwError } from 'rxjs';
+import { map, switchMap, pluck, mergeMap, filter, toArray, share, tap, catchError, retry } from 'rxjs/operators';
 import { HttpClient, HttpParams } from '@angular/common/http';
+import { NotificationsService } from '../notifications/notifications.service';
 
 interface WeatherResponse {
   list: {
@@ -18,7 +19,10 @@ interface WeatherResponse {
 export class ForecastService {
 
   private url = 'https://api.openweathermap.org/data/2.5/forecast';
-  constructor(private http: HttpClient) { }
+  constructor(
+    private http: HttpClient, 
+    private notificationsService: NotificationsService
+  ) { }
 
   getForecast(){
     return this.getCurrentLocation()
@@ -41,7 +45,14 @@ export class ForecastService {
           };
         }),
         toArray(),
-        share()
+        share(),
+        // tap(() => {
+        //   this.notificationsService.addSuccess('Weather fetch successful');
+        // }),
+        // catchError((err) => {
+        //   this.notificationsService.addError('Weather fetch failed');
+        //   return throwError(err);
+        // })
       );
   }
 
@@ -54,6 +65,15 @@ export class ForecastService {
         },
         (err) => observer.error(err)
       );
-    });
+    }).pipe(
+      retry(2),
+      tap(() => {
+        this.notificationsService.addSuccess('Location fetch successful');
+      }),
+      catchError((err) => {
+        this.notificationsService.addError('Location fetch failed');
+        return throwError(err);
+      })
+    );
   }
 }
